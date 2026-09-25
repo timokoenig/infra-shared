@@ -1,0 +1,57 @@
+# infra.yaml reference. Every key, with its type and default.
+# Names (environments, hosts, services, networks, roles): lowercase letters, digits, dashes, <= 63 chars.
+# Unknown keys are errors. Relative paths resolve against the directory of infra.yaml.
+
+project: string                 # required. The project name; should match the provider's project name.
+default_env: string             # optional. Used when --env / INFRA_ENV is not given and there are several envs.
+provider:                       # optional. When present, hosts resolve public IPs from `<command> status --json`.
+  command: string               # the provider CLI (default: the tool's own default)
+  file: string                  # the provider's config file, passed as --file (relative to infra.yaml)
+tokens:                         # optional. Verification key for issued agent/CI tokens (INFRA_TOKEN).
+  public_key_file: string       # ed25519 public key ("ed25519 <base64>", base64, or raw 32 bytes)
+ssh:                            # optional. Defaults for every host.
+  user: string                  # default root
+  port: int                     # default 22
+vars: {key: any}                # optional. Free variables; merged project -> environment -> host/service.
+
+environments:                   # required. At least one.
+  <env>:
+    provider_env: string        # environment name at the provider (default: <env>)
+    domain: string              # the environment's base domain, for tools that build names
+    ssh: {user, port}           # overrides the top-level ssh defaults for this env
+    vars: {key: any}
+
+    networks:                   # optional
+      <name>:
+        kind: wireguard|private # required
+        cidr: CIDR              # required for wireguard; optional for private when the provider knows it
+        hub: string             # wireguard: the host running the hub (must be a host of this env)
+        provider: string        # private: the network name at the provider
+
+    hosts:                      # machines. A host with no keys at all is fine when the provider resolves it.
+      <name>:
+        provider: string        # server name at the provider (default: <name> when provider: is set); "none" = not there
+        address: string         # public IP or DNS name; resolved from the provider when empty
+        private_address: IP     # address on the private network
+        vpn_address: IP         # address on the wireguard network (must be inside its cidr)
+        ssh:
+          user: string          # overrides env/top-level
+          port: int
+          via: string           # jump host: another host of this env (chains allowed, no cycles)
+          address: public|vpn|private   # which address ssh connects to. Default: public if it has one,
+                                        #   else vpn, else private
+        roles: [string]         # what a host configuration tool applies: base, docker, postgres, monitoring, wireguard-hub, ...
+        dns: [fqdn]             # names that point at this host (a DNS tool manages them)
+        networks: [string]      # membership; derived from private_address/vpn_address/hub when empty
+        labels: {key: value}    # free labels; keys may not start with "infra."
+        vars: {key: any}
+
+    services:                   # what a deployment tool deploys
+      <name>:
+        hosts: [string]         # required: hosts of this env that run it
+        depends_on: [string]    # other services of this env (no cycles)
+        ports:
+          - {port: int, protocol: tcp|udp, public: bool}   # protocol default tcp; public default false
+        dns: [fqdn]             # names that point at this service (a DNS tool manages them)
+        labels: {key: value}
+        vars: {key: any}

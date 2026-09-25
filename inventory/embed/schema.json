@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "infra.yaml",
+  "type": "object",
+  "required": ["project", "environments"],
+  "additionalProperties": false,
+  "$defs": {
+    "name": {"type": "string", "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"},
+    "fqdn": {"type": "string", "pattern": "^(\\*\\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"},
+    "labels": {"type": "object", "additionalProperties": {"type": "string"}, "propertyNames": {"not": {"pattern": "^infra\\."}}},
+    "vars": {"type": "object"},
+    "ssh_defaults": {"type": "object", "additionalProperties": false, "properties": {
+      "user": {"type": "string"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535}}},
+    "host_ssh": {"type": "object", "additionalProperties": false, "properties": {
+      "user": {"type": "string"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+      "via": {"$ref": "#/$defs/name"}, "address": {"enum": ["public", "vpn", "private"]}}},
+    "host": {"type": ["object", "null"], "additionalProperties": false, "properties": {
+      "provider": {"type": "string"}, "address": {"type": "string"}, "private_address": {"type": "string"}, "vpn_address": {"type": "string"},
+      "ssh": {"$ref": "#/$defs/host_ssh"},
+      "roles": {"type": "array", "items": {"$ref": "#/$defs/name"}},
+      "dns": {"type": "array", "items": {"$ref": "#/$defs/fqdn"}},
+      "networks": {"type": "array", "items": {"$ref": "#/$defs/name"}},
+      "labels": {"$ref": "#/$defs/labels"}, "vars": {"$ref": "#/$defs/vars"}}},
+    "port": {"type": "object", "additionalProperties": false, "required": ["port"], "properties": {
+      "port": {"type": "integer", "minimum": 1, "maximum": 65535}, "protocol": {"enum": ["tcp", "udp"]}, "public": {"type": "boolean"}}},
+    "service": {"type": "object", "additionalProperties": false, "required": ["hosts"], "properties": {
+      "hosts": {"type": "array", "items": {"$ref": "#/$defs/name"}, "minItems": 1},
+      "depends_on": {"type": "array", "items": {"$ref": "#/$defs/name"}},
+      "ports": {"type": "array", "items": {"$ref": "#/$defs/port"}},
+      "dns": {"type": "array", "items": {"$ref": "#/$defs/fqdn"}},
+      "labels": {"$ref": "#/$defs/labels"}, "vars": {"$ref": "#/$defs/vars"}}},
+    "network": {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {
+      "kind": {"enum": ["wireguard", "private"]}, "cidr": {"type": "string"}, "hub": {"$ref": "#/$defs/name"}, "provider": {"type": "string"}}},
+    "environment": {"type": "object", "additionalProperties": false, "properties": {
+      "provider_env": {"$ref": "#/$defs/name"}, "domain": {"$ref": "#/$defs/fqdn"}, "ssh": {"$ref": "#/$defs/ssh_defaults"}, "vars": {"$ref": "#/$defs/vars"},
+      "hosts": {"type": "object", "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/host"}},
+      "services": {"type": "object", "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/service"}},
+      "networks": {"type": "object", "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/network"}}}}
+  },
+  "properties": {
+    "project": {"$ref": "#/$defs/name"},
+    "default_env": {"$ref": "#/$defs/name"},
+    "provider": {"type": "object", "additionalProperties": false, "properties": {"command": {"type": "string"}, "file": {"type": "string"}}},
+    "tokens": {"type": "object", "additionalProperties": false, "properties": {"public_key_file": {"type": "string"}}},
+    "ssh": {"$ref": "#/$defs/ssh_defaults"},
+    "vars": {"$ref": "#/$defs/vars"},
+    "environments": {"type": "object", "minProperties": 1, "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/environment"}}
+  }
+}

@@ -1,0 +1,48 @@
+# infra.yaml: the inventory every tool reads. The `schema` command documents every field.
+project: myproject
+default_env: staging
+provider: {command: mycloud, file: mycloud.yaml}   # hosts resolve public IPs from `mycloud status --json`
+ssh: {user: root, port: 22}
+
+environments:
+  staging:
+    domain: staging.example.com
+    networks:
+      vpn: {kind: wireguard, cidr: 10.8.0.0/24, hub: hub-1}
+      internal: {kind: private, provider: internal, cidr: 10.0.0.0/16}
+    hosts:
+      hub-1:
+        roles: [base, wireguard-hub]
+        vpn_address: 10.8.0.1
+        private_address: 10.0.1.1
+      web-1:
+        roles: [base, docker, monitoring]
+        private_address: 10.0.1.2
+        vpn_address: 10.8.0.2
+        ssh: {via: hub-1, address: private}   # no public ssh: jump through the hub
+        dns: [web-1.staging.example.com]
+      db-1:
+        roles: [base, postgres]
+        private_address: 10.0.1.3
+        ssh: {via: hub-1, address: private}
+      backup-box:
+        provider: none                        # not a provider server
+        address: u123456.your-storagebox.de
+        ssh: {user: u123456, port: 23}
+        roles: [storage]
+    services:
+      api:
+        hosts: [web-1]
+        depends_on: [postgres]
+        ports: [{port: 8080}]
+        dns: [api.staging.example.com]
+      postgres:
+        hosts: [db-1]
+        ports: [{port: 5432}]
+  prod:
+    provider_env: prod
+    domain: example.com
+    hosts:
+      web-1: {roles: [base, docker, monitoring], dns: [example.com, www.example.com]}
+    services:
+      api: {hosts: [web-1], ports: [{port: 8080}], dns: [api.example.com]}
