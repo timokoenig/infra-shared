@@ -142,9 +142,19 @@ func (r *Runner) exec(ctx context.Context, argv []string, stdin []byte) (Result,
 		if msg == "" {
 			msg = "ssh failed"
 		}
-		return res, fmt.Errorf("ssh %s: %s", argv[len(argv)-1], lastLine(msg))
+		return res, fmt.Errorf("ssh %s: %s", target(argv), lastLine(msg))
 	}
 	return res, nil
+}
+
+// target is the host argument of an ssh argv (the word before "--", else the last).
+func target(argv []string) string {
+	for i, a := range argv {
+		if a == "--" && i > 0 {
+			return argv[i-1]
+		}
+	}
+	return argv[len(argv)-1]
 }
 
 func lastLine(s string) string {
@@ -186,7 +196,9 @@ func (r *Runner) Ping(ctx context.Context, route []inventory.Hop) error {
 }
 
 // Put writes content to path on the host with the given mode (e.g. "0644"),
-// atomically (temp file + mv). sudo is used when the user is not root.
+// atomically (temp file + install), creating parent directories. sudo is
+// used when the user is not root. The script travels as one quoted
+// argument, so the remote shell runs it whole and its exit status is real.
 func (r *Runner) Put(ctx context.Context, route []inventory.Hop, path string, content []byte, mode string) error {
 	if mode == "" {
 		mode = "0644"
@@ -195,8 +207,12 @@ func (r *Runner) Put(ctx context.Context, route []inventory.Hop, path string, co
 	if len(route) > 0 && route[len(route)-1].User != "root" {
 		sudo = "sudo "
 	}
-	script := fmt.Sprintf("set -e\nt=$(mktemp)\ncat > \"$t\"\n%sinstall -m %s \"$t\" %s\nrm -f \"$t\"\n", sudo, shellQuote(mode), shellQuote(path))
-	argv, err := Argv(route, r.Options, []string{"sh", "-c", script})
+	dir := path[:strings.LastIndex(path, "/")+1]
+	if dir == "" {
+		dir = "."
+	}
+	script := fmt.Sprintf("set -e\nt=$(mktemp)\ncat > \"$t\"\n%smkdir -p %s\n%sinstall -m %s \"$t\" %s\nrm -f \"$t\"\n", sudo, shellQuote(dir), sudo, shellQuote(mode), shellQuote(path))
+	argv, err := Argv(route, r.Options, []string{"sh", "-c", shellQuote(script)})
 	if err != nil {
 		return err
 	}

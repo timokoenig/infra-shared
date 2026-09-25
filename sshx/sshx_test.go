@@ -33,6 +33,36 @@ func TestArgv(t *testing.T) {
 	}
 }
 
+func TestPutQuotesScriptAndCreatesDir(t *testing.T) {
+	route := []inventory.Hop{{Host: "web-1", Address: "1.2.3.4", User: "deploy", Port: 22}}
+	var got []string
+	var gotStdin string
+	r := &Runner{Exec: func(_ context.Context, argv []string, stdin []byte) ([]byte, []byte, int, error) {
+		got, gotStdin = argv, string(stdin)
+		return nil, nil, 0, nil
+	}}
+	if err := r.Put(context.Background(), route, "/etc/vault/it's", []byte("v"), "0600"); err != nil {
+		t.Fatal(err)
+	}
+	script := got[len(got)-1]
+	if got[len(got)-3] != "sh" || got[len(got)-2] != "-c" || !strings.HasPrefix(script, "'set -e\n") || !strings.HasSuffix(script, "'") {
+		t.Fatalf("script must be one quoted sh -c argument: %q", got)
+	}
+	inner := "set -e\nt=$(mktemp)\ncat > \"$t\"\nsudo mkdir -p '/etc/vault/'\nsudo install -m '0600' \"$t\" '/etc/vault/it'\\''s'\nrm -f \"$t\"\n"
+	if script != shellQuote(inner) {
+		t.Errorf("script:\n got %s\nwant %s", script, shellQuote(inner))
+	}
+	if gotStdin != "v" {
+		t.Errorf("stdin: %q", gotStdin)
+	}
+	r2 := &Runner{Exec: func(context.Context, []string, []byte) ([]byte, []byte, int, error) {
+		return nil, []byte("install: cannot create regular file"), 1, nil
+	}}
+	if err := r2.Put(context.Background(), route, "/x/y", []byte("v"), ""); err == nil || !strings.Contains(err.Error(), "cannot create") {
+		t.Errorf("install failure must surface: %v", err)
+	}
+}
+
 func TestRunnerAndLock(t *testing.T) {
 	route := []inventory.Hop{{Host: "web-1", Address: "1.2.3.4", User: "root", Port: 22}}
 	var lastStdin string
