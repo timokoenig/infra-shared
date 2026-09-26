@@ -33,7 +33,7 @@
     "network": {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {
       "kind": {"enum": ["wireguard", "private"]}, "cidr": {"type": "string"}, "hub": {"$ref": "#/$defs/name"}, "provider": {"type": "string"}}},
     "environment": {"type": "object", "additionalProperties": false, "properties": {
-      "provider_env": {"$ref": "#/$defs/name"}, "domain": {"$ref": "#/$defs/fqdn"}, "ssh": {"$ref": "#/$defs/ssh_defaults"}, "vars": {"$ref": "#/$defs/vars"},
+      "provider_env": {"$ref": "#/$defs/name"}, "protected": {"type": "boolean"}, "domain": {"$ref": "#/$defs/fqdn"}, "ssh": {"$ref": "#/$defs/ssh_defaults"}, "vars": {"$ref": "#/$defs/vars"},
       "hosts": {"type": "object", "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/host"}},
       "services": {"type": "object", "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/service"}},
       "networks": {"type": "object", "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/network"}}}}

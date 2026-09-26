@@ -52,13 +52,16 @@ type SSHDefaults struct {
 // Environment is one deployment target: prod, staging, ...
 type Environment struct {
 	// ProviderEnv is the provider's environment name. Default: the environment name.
-	ProviderEnv string              `yaml:"provider_env"`
-	Domain      string              `yaml:"domain"`
-	SSH         SSHDefaults         `yaml:"ssh"`
-	Vars        map[string]any      `yaml:"vars"`
-	Hosts       map[string]*Host    `yaml:"hosts"`
-	Services    map[string]*Service `yaml:"services"`
-	Networks    map[string]*Network `yaml:"networks"`
+	ProviderEnv string `yaml:"provider_env"`
+	// Protected environments refuse every mutating command unless --confirm <env>
+	// (or INFRA_CONFIRM=<env>) names them explicitly.
+	Protected bool                `yaml:"protected"`
+	Domain    string              `yaml:"domain"`
+	SSH       SSHDefaults         `yaml:"ssh"`
+	Vars      map[string]any      `yaml:"vars"`
+	Hosts     map[string]*Host    `yaml:"hosts"`
+	Services  map[string]*Service `yaml:"services"`
+	Networks  map[string]*Network `yaml:"networks"`
 }
 
 // Host is one machine.

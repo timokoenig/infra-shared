@@ -18,6 +18,7 @@ vars: {key: any}                # optional. Free variables; merged project -> en
 environments:                   # required. At least one.
   <env>:
     provider_env: string        # environment name at the provider (default: <env>)
+    protected: bool             # every mutating command of every tool refuses unless --confirm <env> (or INFRA_CONFIRM=<env>)
     domain: string              # the environment's base domain, for tools that build names
     ssh: {user, port}           # overrides the top-level ssh defaults for this env
     vars: {key: any}

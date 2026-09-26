@@ -13,6 +13,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/timokoenig/infra-shared/inventory"
 	"io"
 	"os"
 	"os/signal"
@@ -82,6 +83,7 @@ type Globals struct {
 	Offline   bool
 	Inventory string // path of infra.yaml
 	Env       string // environment name
+	Confirm   string // --confirm ENV: the protected environment this command may change
 }
 
 // Command is one subcommand.
@@ -90,9 +92,13 @@ type Command struct {
 	Aliases []string
 	Usage   string // e.g. "hosts [--role R]"
 	Summary string
-	// Mutating commands are appended to the audit log with their result.
+	// Mutating commands are appended to the audit log with their result, and
+	// refused on a protected environment without --confirm <env>.
 	Mutating bool
-	Run      func(c *Ctx, args []string) error
+	// Local marks a mutating command that touches only this machine (init,
+	// keys, approvals): no environment guard.
+	Local bool
+	Run   func(c *Ctx, args []string) error
 }
 
 // App describes a tool.
@@ -129,6 +135,7 @@ func (a *App) Main(args []string) int {
 	c := &Ctx{App: a}
 	c.Inventory = a.Getenv("INFRA_FILE")
 	c.Env = a.Getenv("INFRA_ENV")
+	c.Confirm = a.Getenv("INFRA_CONFIRM")
 	gfs := flag.NewFlagSet(a.Name, flag.ContinueOnError)
 	gfs.SetOutput(io.Discard)
 	c.globalFlags(gfs)
@@ -157,7 +164,13 @@ func (a *App) Main(args []string) int {
 	}
 	c.cmd = cmd.Name
 	start := a.Now()
-	err := cmd.Run(c, rest)
+	var err error
+	if cmd.Mutating && !cmd.Local {
+		err = c.guardProtectedEnv()
+	}
+	if err == nil {
+		err = cmd.Run(c, rest)
+	}
 	code := c.Finish(err)
 	if cmd.Mutating {
 		rec := audit.Record{Time: start, Tool: a.Name, Version: a.Version, Command: cmd.Name, Args: rest, Env: c.Env,
@@ -259,6 +272,7 @@ func (c *Ctx) globalFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.JSON, "json", c.JSON, "machine-readable output on stdout (for scripts and agents)")
 	fs.BoolVar(&c.JSON, "j", c.JSON, "shorthand for --json")
 	fs.BoolVar(&c.UTC, "utc", c.UTC, "print times as UTC RFC 3339 instead of relative")
+	fs.StringVar(&c.Confirm, "confirm", c.Confirm, "name of a protected environment this command may change (env INFRA_CONFIRM)")
 	fs.BoolVar(&c.Offline, "offline", c.Offline, "never call the provider or a host; resolve from the inventory only")
 	if c.App.Flags != nil {
 		c.App.Flags(fs)
@@ -347,4 +361,33 @@ global flags (before or after the command):
 	if a.Footer != "" {
 		fmt.Fprint(w, a.Footer)
 	}
+}
+
+// guardProtectedEnv refuses a mutating command on a protected environment
+// unless --confirm names it. A missing or invalid inventory is not this
+// guard's business; the command reports that itself.
+func (c *Ctx) guardProtectedEnv() error {
+	path := c.Inventory
+	if path == "" {
+		path = "infra.yaml"
+	}
+	inv, err := inventory.Load(path)
+	if inv == nil || err != nil {
+		return nil
+	}
+	env, err := inv.PickEnv(c.Env)
+	if err != nil {
+		return nil
+	}
+	return c.ConfirmProtected(env, inv.Environments[env].Protected)
+}
+
+// ConfirmProtected is the protected-environment check for commands whose
+// target environment is not the --env one (a secret path, a host of another
+// environment): exit 3 unless --confirm <env> or INFRA_CONFIRM=<env> was given.
+func (c *Ctx) ConfirmProtected(env string, protected bool) error {
+	if !protected || c.Confirm == env {
+		return nil
+	}
+	return Problemsf("environment %s is protected; pass --confirm %s (or INFRA_CONFIRM=%s) to change it", env, env, env)
 }
