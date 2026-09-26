@@ -19,6 +19,9 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/timokoenig/infra-shared/approval"
+	"github.com/timokoenig/infra-shared/policy"
 )
 
 // EnvVar holds the token; EnvKey the file with the issuer's public key.
@@ -191,4 +194,59 @@ func expand(getenv func(string) string, p string) string {
 		return home + p[1:]
 	}
 	return p
+}
+
+// ErrApprovalRequired is returned by GuardPolicy when the policy asks for
+// an operator's approval and none is available yet. The message names the
+// request id for `gate approve`. Tools exit 3 on it.
+type ErrApprovalRequired struct {
+	ID      string
+	Subject string
+	Call    string
+}
+
+func (e *ErrApprovalRequired) Error() string {
+	return fmt.Sprintf("approval required for %s (%s): an operator runs `gate approve %s`, then retry", e.Call, e.Subject, e.ID)
+}
+
+// ErrDenied is returned when policy.yaml denies the call to every token holder.
+type ErrDenied struct {
+	Call    string
+	Pattern string
+}
+
+func (e *ErrDenied) Error() string {
+	return fmt.Sprintf("policy denies %s to token holders", e.Call)
+}
+
+// GuardPolicy is Guard plus policy.yaml: after the token's own scopes
+// pass, the policy may deny the call or require an operator's approval.
+// With no token in the environment the caller is an operator and neither
+// applies. policyFile may be "" (no policy).
+func GuardPolicy(getenv func(string) string, keyFile, policyFile, tool, action, target string, now time.Time) (*Token, error) {
+	t, err := Guard(getenv, keyFile, tool, action, target, now)
+	if err != nil || t == nil {
+		return t, err
+	}
+	pol, err := policy.Load(policyFile)
+	if err != nil {
+		return nil, err
+	}
+	call := tool + ":" + action
+	if target != "" {
+		call += " " + target
+	}
+	switch pol.Decide(tool, action, target) {
+	case policy.Deny:
+		return nil, &ErrDenied{Call: call}
+	case policy.NeedsApproval:
+		req, ok, err := approval.Ask(getenv, tool, action, target, t.Subject, t.ID, t.Note, now)
+		if err != nil {
+			return nil, fmt.Errorf("approval store: %w", err)
+		}
+		if !ok {
+			return nil, &ErrApprovalRequired{ID: req.ID, Subject: t.Subject, Call: call}
+		}
+	}
+	return t, nil
 }

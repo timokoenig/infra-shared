@@ -9,6 +9,7 @@ provider:                       # optional. When present, hosts resolve public I
   file: string                  # the provider's config file, passed as --file (relative to infra.yaml)
 tokens:                         # optional. Verification key for issued agent/CI tokens (INFRA_TOKEN).
   public_key_file: string       # ed25519 public key ("ed25519 <base64>", base64, or raw 32 bytes)
+  policy_file: string           # policy for token holders (deny / approve patterns). Default: policy.yaml next to infra.yaml
 ssh:                            # optional. Defaults for every host.
   user: string                  # default root
   port: int                     # default 22

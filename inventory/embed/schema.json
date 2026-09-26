@@ -41,7 +41,7 @@
     "project": {"$ref": "#/$defs/name"},
     "default_env": {"$ref": "#/$defs/name"},
     "provider": {"type": "object", "additionalProperties": false, "properties": {"command": {"type": "string"}, "file": {"type": "string"}}},
-    "tokens": {"type": "object", "additionalProperties": false, "properties": {"public_key_file": {"type": "string"}}},
+    "tokens": {"type": "object", "additionalProperties": false, "properties": {"public_key_file": {"type": "string"}, "policy_file": {"type": "string"}}},
     "ssh": {"$ref": "#/$defs/ssh_defaults"},
     "vars": {"$ref": "#/$defs/vars"},
     "environments": {"type": "object", "minProperties": 1, "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/environment"}}

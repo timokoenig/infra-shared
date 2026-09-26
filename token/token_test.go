@@ -4,10 +4,14 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/timokoenig/infra-shared/approval"
 )
 
 func TestRoundTripAndScopes(t *testing.T) {
@@ -80,5 +84,45 @@ func TestGuard(t *testing.T) {
 	env[EnvKey] = filepath.Join(dir, "missing.pub")
 	if _, err := Guard(getenv, keyFile, "deploy", "run", "staging/api", now); err == nil {
 		t.Error("env key override missing: want error")
+	}
+}
+
+func TestGuardPolicy(t *testing.T) {
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	dir := t.TempDir()
+	keyFile := filepath.Join(dir, "gate.pub")
+	os.WriteFile(keyFile, []byte("ed25519 "+base64.StdEncoding.EncodeToString(pub)+"\n"), 0o600)
+	polFile := filepath.Join(dir, "policy.yaml")
+	os.WriteFile(polFile, []byte("deny: [\"hetz:destroy *\"]\napprove: [\"ship:deploy prod/*\"]\n"), 0o600)
+	now := time.Now()
+	s, _ := Encode(&Token{ID: "t3", Subject: "agent", Scopes: []string{"*"}, IssuedAt: now, ExpiresAt: now.Add(time.Hour)}, priv)
+	env := map[string]string{EnvVar: s, "INFRA_APPROVALS_DIR": filepath.Join(dir, "approvals")}
+	getenv := func(k string) string { return env[k] }
+
+	if tok, err := GuardPolicy(getenv, keyFile, polFile, "ship", "deploy", "staging/api", now); err != nil || tok == nil {
+		t.Fatalf("allowed: %v", err)
+	}
+	var denied *ErrDenied
+	if _, err := GuardPolicy(getenv, keyFile, polFile, "hetz", "destroy", "prod", now); !errors.As(err, &denied) {
+		t.Fatalf("deny: %v", err)
+	}
+	var ar *ErrApprovalRequired
+	_, err := GuardPolicy(getenv, keyFile, polFile, "ship", "deploy", "prod/api", now)
+	if !errors.As(err, &ar) || ar.Subject != "agent" || !strings.Contains(err.Error(), "gate approve "+ar.ID) {
+		t.Fatalf("approval: %v", err)
+	}
+	if _, err := approval.Approve(getenv, ar.ID, "timo", time.Hour, now); err != nil {
+		t.Fatal(err)
+	}
+	if tok, err := GuardPolicy(getenv, keyFile, polFile, "ship", "deploy", "prod/api", now.Add(time.Minute)); err != nil || tok == nil {
+		t.Fatalf("after approval: %v", err)
+	}
+	if _, err := GuardPolicy(getenv, keyFile, polFile, "ship", "deploy", "prod/api", now.Add(2*time.Minute)); !errors.As(err, &ar) {
+		t.Fatalf("approval is single use: %v", err)
+	}
+	// operators (no token) are not subject to the policy
+	delete(env, EnvVar)
+	if tok, err := GuardPolicy(getenv, keyFile, polFile, "hetz", "destroy", "prod", now); err != nil || tok != nil {
+		t.Fatalf("operator: %v %v", tok, err)
 	}
 }

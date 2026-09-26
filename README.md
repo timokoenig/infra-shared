@@ -12,7 +12,9 @@ tools: nothing in here talks to a cloud, deploys or backs up anything.
 | `inventory` | `infra.yaml`: types, strict parsing, validation, resolution of host addresses from a provider CLI (`<command> status --json`), ssh routes through jump hosts, the embedded reference/example/JSON schema |
 | `sshx` | run scripts on a host through the system `ssh` along a route (`-J` for jump hosts), atomic file put, per-host lock |
 | `audit` | one JSON line per mutating command in `~/.local/state/infra/audit.jsonl` |
-| `token` | ed25519-signed, short-lived, scoped tokens (`INFRA_TOKEN`) and the guard every tool calls |
+| `token` | ed25519-signed, short-lived, scoped tokens (`INFRA_TOKEN`) and the guard every tool calls; `GuardPolicy` adds policy.yaml |
+| `policy` | policy.yaml: `deny` and `approve` scope patterns for token holders |
+| `approval` | the store of gated calls waiting for an operator: ask, approve, deny, single use |
 
 ## Using it from a tool
 

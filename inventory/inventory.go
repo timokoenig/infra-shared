@@ -34,9 +34,13 @@ type Provider struct {
 	File string `yaml:"file"`
 }
 
-// Tokens configures token verification.
+// Tokens configures token verification and the policy for token holders.
 type Tokens struct {
 	PublicKeyFile string `yaml:"public_key_file"`
+	// PolicyFile is policy.yaml: what token holders may never do and what
+	// needs an operator's approval. Default: policy.yaml next to infra.yaml
+	// when it exists.
+	PolicyFile string `yaml:"policy_file,omitempty"`
 }
 
 // SSHDefaults are inherited settings.

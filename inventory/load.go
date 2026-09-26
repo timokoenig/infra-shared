@@ -89,6 +89,23 @@ func (inv *Inventory) TokenKeyFile() string {
 	return filepath.Join(inv.Dir(), f)
 }
 
+// PolicyFile returns the policy file path: tokens.policy_file, else
+// policy.yaml next to the inventory if present, else "".
+func (inv *Inventory) PolicyFile() string {
+	if inv.Tokens != nil && inv.Tokens.PolicyFile != "" {
+		f := inv.Tokens.PolicyFile
+		if strings.HasPrefix(f, "~/") || filepath.IsAbs(f) {
+			return f
+		}
+		return filepath.Join(inv.Dir(), f)
+	}
+	p := filepath.Join(inv.Dir(), "policy.yaml")
+	if _, err := os.Stat(p); err == nil {
+		return p
+	}
+	return ""
+}
+
 // EnvNames returns the environment names sorted.
 func (inv *Inventory) EnvNames() []string {
 	names := make([]string, 0, len(inv.Environments))
