@@ -15,7 +15,7 @@ func TestArgv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "ssh -o ConnectTimeout=10 -o BatchMode=yes -p 22 -l root 1.2.3.4 -- uptime"
+	want := "ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=accept-new -p 22 -l root 1.2.3.4 -- uptime"
 	if got := strings.Join(argv, " "); got != want {
 		t.Errorf("direct:\n got %s\nwant %s", got, want)
 	}

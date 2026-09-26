@@ -45,7 +45,9 @@ func Argv(route []inventory.Hop, o Options, cmd []string) ([]string, error) {
 	}
 	argv := []string{"ssh", "-o", "ConnectTimeout=" + strconv.Itoa(to)}
 	if !o.Interactive {
-		argv = append(argv, "-o", "BatchMode=yes")
+		// BatchMode never prompts, so a host seen for the first time (a fresh server) must be
+		// accepted on first use; a changed key is still refused, as it should be.
+		argv = append(argv, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new")
 	}
 	if o.IdentityFile != "" {
 		argv = append(argv, "-i", o.IdentityFile)
