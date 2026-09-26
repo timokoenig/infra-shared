@@ -83,7 +83,7 @@ type Globals struct {
 	Offline   bool
 	Inventory string // path of infra.yaml
 	Env       string // environment name
-	Confirm   string // --confirm ENV: the protected environment this command may change
+	Confirm   string // --confirm NAME[,NAME]: what this command may change (a protected environment, a host to rebuild)
 }
 
 // Command is one subcommand.
@@ -127,6 +127,10 @@ type Ctx struct {
 	*App
 	Globals
 	cmd string
+	// guarded: the command is mutating and not local, so Parse applies the
+	// protected-environment rule once every flag (global ones may follow the
+	// command) is known.
+	guarded bool
 }
 
 // Main runs the tool and returns the exit code.
@@ -163,14 +167,9 @@ func (a *App) Main(args []string) int {
 		return ExitUsage
 	}
 	c.cmd = cmd.Name
+	c.guarded = cmd.Mutating && !cmd.Local
 	start := a.Now()
-	var err error
-	if cmd.Mutating && !cmd.Local {
-		err = c.guardProtectedEnv()
-	}
-	if err == nil {
-		err = cmd.Run(c, rest)
-	}
+	err := cmd.Run(c, rest)
 	code := c.Finish(err)
 	if cmd.Mutating {
 		rec := audit.Record{Time: start, Tool: a.Name, Version: a.Version, Command: cmd.Name, Args: rest, Env: c.Env,
@@ -272,7 +271,7 @@ func (c *Ctx) globalFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.JSON, "json", c.JSON, "machine-readable output on stdout (for scripts and agents)")
 	fs.BoolVar(&c.JSON, "j", c.JSON, "shorthand for --json")
 	fs.BoolVar(&c.UTC, "utc", c.UTC, "print times as UTC RFC 3339 instead of relative")
-	fs.StringVar(&c.Confirm, "confirm", c.Confirm, "name of a protected environment this command may change (env INFRA_CONFIRM)")
+	fs.StringVar(&c.Confirm, "confirm", c.Confirm, "names this command may change, comma-separated: a protected environment, a host to rebuild (env INFRA_CONFIRM)")
 	fs.BoolVar(&c.Offline, "offline", c.Offline, "never call the provider or a host; resolve from the inventory only")
 	if c.App.Flags != nil {
 		c.App.Flags(fs)
@@ -317,6 +316,11 @@ func (c *Ctx) Parse(fs *flag.FlagSet, args []string) (positional, extra []string
 		}
 		positional = append(positional, rest[0])
 		rest = rest[1:]
+	}
+	if c.guarded {
+		if err := c.guardProtectedEnv(); err != nil {
+			return nil, nil, err
+		}
 	}
 	return positional, extra, nil
 }
@@ -364,8 +368,9 @@ global flags (before or after the command):
 }
 
 // guardProtectedEnv refuses a mutating command on a protected environment
-// unless --confirm names it. A missing or invalid inventory is not this
-// guard's business; the command reports that itself.
+// unless --confirm names it; Parse calls it once the command's flags are
+// known. A missing or invalid inventory is not this guard's business; the
+// command reports that itself.
 func (c *Ctx) guardProtectedEnv() error {
 	path := c.Inventory
 	if path == "" {
@@ -386,8 +391,19 @@ func (c *Ctx) guardProtectedEnv() error {
 // target environment is not the --env one (a secret path, a host of another
 // environment): exit 3 unless --confirm <env> or INFRA_CONFIRM=<env> was given.
 func (c *Ctx) ConfirmProtected(env string, protected bool) error {
-	if !protected || c.Confirm == env {
+	if !protected || c.Confirmed(env) {
 		return nil
 	}
 	return Problemsf("environment %s is protected; pass --confirm %s (or INFRA_CONFIRM=%s) to change it", env, env, env)
+}
+
+// Confirmed reports whether --confirm (or INFRA_CONFIRM) names name; tools use
+// it for their own "type the name" confirmations (drill rebuild --confirm <host>).
+func (c *Ctx) Confirmed(name string) bool {
+	for _, n := range strings.Split(c.Confirm, ",") {
+		if strings.TrimSpace(n) == name && name != "" {
+			return true
+		}
+	}
+	return false
 }

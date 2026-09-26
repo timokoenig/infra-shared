@@ -27,9 +27,27 @@ func TestProtectedEnvironment(t *testing.T) {
 	app := func(confirm string) (*App, *bytes.Buffer) {
 		var out, errb bytes.Buffer
 		return &App{Name: "t", Stdout: &out, Stderr: &errb, Getenv: getenv(confirm), Commands: []Command{
-			{Name: "apply", Mutating: true, Run: func(c *Ctx, _ []string) error { ran++; return nil }},
-			{Name: "init", Mutating: true, Local: true, Run: func(c *Ctx, _ []string) error { ran++; return nil }},
-			{Name: "plan", Run: func(c *Ctx, _ []string) error { ran++; return nil }},
+			{Name: "apply", Mutating: true, Run: func(c *Ctx, args []string) error {
+				if _, _, err := c.Parse(c.Flags("apply"), args); err != nil {
+					return err
+				}
+				ran++
+				return nil
+			}},
+			{Name: "init", Mutating: true, Local: true, Run: func(c *Ctx, args []string) error {
+				if _, _, err := c.Parse(c.Flags("init"), args); err != nil {
+					return err
+				}
+				ran++
+				return nil
+			}},
+			{Name: "plan", Run: func(c *Ctx, args []string) error {
+				if _, _, err := c.Parse(c.Flags("plan"), args); err != nil {
+					return err
+				}
+				ran++
+				return nil
+			}},
 		}}, &errb
 	}
 	a, _ := app("")
@@ -63,5 +81,22 @@ func TestProtectedEnvironment(t *testing.T) {
 	a, _ = app("")
 	if code := a.Main([]string{"-i", filepath.Join(dir, "missing.yaml"), "-e", "prod", "apply"}); code != 0 || ran != 6 { // no inventory: not this guard's business
 		t.Fatalf("missing inventory: %d ran=%d", code, ran)
+	}
+	// global flags after the command count too
+	a, errb = app("")
+	if code := a.Main([]string{"-i", inv, "apply", "--env", "prod"}); code != 3 || ran != 6 || !strings.Contains(errb.String(), "--confirm prod") {
+		t.Fatalf("env after the command: %d ran=%d %s", code, ran, errb.String())
+	}
+	a, _ = app("")
+	if code := a.Main([]string{"-i", inv, "apply", "--env", "prod", "--confirm", "prod"}); code != 0 || ran != 7 {
+		t.Fatalf("confirm after the command: %d ran=%d", code, ran)
+	}
+	a, _ = app("")
+	if code := a.Main([]string{"-i", inv, "apply", "--env", "prod", "--confirm", "web-1,prod"}); code != 0 || ran != 8 { // a list: host and env
+		t.Fatalf("confirm list: %d ran=%d", code, ran)
+	}
+	c := &Ctx{Globals: Globals{Confirm: "web-1, prod"}}
+	if !c.Confirmed("web-1") || !c.Confirmed("prod") || c.Confirmed("db-1") || c.Confirmed("") {
+		t.Fatal("Confirmed")
 	}
 }
