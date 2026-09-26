@@ -92,7 +92,11 @@ type HostSSH struct {
 
 // Service is something a deployment tool puts onto hosts.
 type Service struct {
-	Hosts     []string          `yaml:"hosts"`
+	Hosts []string `yaml:"hosts"`
+	// Expose says who may reach the service: public (default), vpn (only
+	// through the WireGuard network), private (only from the private network).
+	// DNS, firewall and reverse proxy follow it.
+	Expose    string            `yaml:"expose"`
 	DependsOn []string          `yaml:"depends_on"`
 	Ports     []Port            `yaml:"ports"`
 	DNS       []string          `yaml:"dns"`
@@ -123,6 +127,13 @@ const (
 	AddrPublic  = "public"
 	AddrVPN     = "vpn"
 	AddrPrivate = "private"
+)
+
+// Expose values.
+const (
+	ExposePublic  = "public"
+	ExposeVPN     = "vpn"
+	ExposePrivate = "private"
 )
 
 // Network kinds.

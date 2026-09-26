@@ -57,6 +57,7 @@ func TestValidateProblems(t *testing.T) {
 		{"project: p\nenvironments: {prod: {hosts: {a: {address: 1.1.1.1, dns: [not_a_name]}}}}", "not a fully qualified"},
 		{"project: p\nenvironments: {prod: {hosts: {a: {address: 1.1.1.1, labels: {infra.x: y}}}}}", "reserved"},
 		{"project: p\nenvironments: {prod: {hosts: {a: {address: 1.1.1.1}}, services: {api: {hosts: [a], ports: [{port: 70000}]}}}}", "out of range"},
+		{"project: p\nenvironments: {prod: {hosts: {a: {address: 1.1.1.1}}, services: {api: {hosts: [a], expose: internet}}}}", "public, vpn or private"},
 	}
 	for _, c := range cases {
 		inv, err := Parse([]byte(c.yaml))
@@ -138,8 +139,8 @@ func TestResolve(t *testing.T) {
 	if strings.Join(r.Networks["vpn"].Members, ",") != "hub-1,web-1" || strings.Join(r.Networks["internal"].Members, ",") != "db-1,hub-1,web-1" {
 		t.Errorf("members: vpn=%v internal=%v", r.Networks["vpn"].Members, r.Networks["internal"].Members)
 	}
-	if r.Services["api"].Target() != "staging/api" || web.Target() != "staging/web-1" {
-		t.Error("targets")
+	if r.Services["api"].Target() != "staging/api" || web.Target() != "staging/web-1" || r.Services["api"].Expose != ExposePublic {
+		t.Error("targets / default expose")
 	}
 
 	// offline: provider hosts unresolved, manual ones fine, route through unresolved hub incomplete

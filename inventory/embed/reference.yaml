@@ -50,6 +50,8 @@ environments:                   # required. At least one.
     services:                   # what a deployment tool deploys
       <name>:
         hosts: [string]         # required: hosts of this env that run it
+        expose: public|vpn|private   # who may reach it. Default public. vpn: DNS points at the vpn address and the
+                                #   reverse proxy only answers from the vpn/private ranges; private: the private network only
         depends_on: [string]    # other services of this env (no cycles)
         ports:
           - {port: int, protocol: tcp|udp, public: bool}   # protocol default tcp; public default false

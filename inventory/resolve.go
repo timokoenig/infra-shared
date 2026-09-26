@@ -76,6 +76,7 @@ type RService struct {
 	Name      string            `json:"name"`
 	Env       string            `json:"env"`
 	Hosts     []string          `json:"hosts"`
+	Expose    string            `json:"expose"`
 	DependsOn []string          `json:"depends_on,omitempty"`
 	Ports     []Port            `json:"ports,omitempty"`
 	DNS       []string          `json:"dns,omitempty"`
@@ -201,7 +202,11 @@ func (inv *Inventory) Resolve(ctx context.Context, envName string, lookup Lookup
 		if s == nil {
 			s = &Service{}
 		}
-		rs := &RService{Name: name, Env: envName, Hosts: nonNil(s.Hosts), DependsOn: s.DependsOn, Ports: s.Ports, DNS: s.DNS,
+		expose := s.Expose
+		if expose == "" {
+			expose = ExposePublic
+		}
+		rs := &RService{Name: name, Env: envName, Hosts: nonNil(s.Hosts), Expose: expose, DependsOn: s.DependsOn, Ports: s.Ports, DNS: s.DNS,
 			Labels: s.Labels, Vars: merge(inv.Vars, env.Vars, s.Vars)}
 		r.Services[name] = rs
 		for _, h := range s.Hosts {

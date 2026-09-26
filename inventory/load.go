@@ -330,6 +330,11 @@ func validateEnv(envName string, env *Environment, inv *Inventory, add func(stri
 		if len(svc.Hosts) == 0 {
 			add("%s: hosts is required (which hosts run it)", sp)
 		}
+		switch svc.Expose {
+		case "", ExposePublic, ExposeVPN, ExposePrivate:
+		default:
+			add("%s.expose %q: public, vpn or private", sp, svc.Expose)
+		}
 		for _, h := range svc.Hosts {
 			if _, ok := env.Hosts[h]; !ok {
 				add("%s.hosts: %q is not a host of %s", sp, h, envName)

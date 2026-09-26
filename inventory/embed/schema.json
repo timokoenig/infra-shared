@@ -25,6 +25,7 @@
       "port": {"type": "integer", "minimum": 1, "maximum": 65535}, "protocol": {"enum": ["tcp", "udp"]}, "public": {"type": "boolean"}}},
     "service": {"type": "object", "additionalProperties": false, "required": ["hosts"], "properties": {
       "hosts": {"type": "array", "items": {"$ref": "#/$defs/name"}, "minItems": 1},
+      "expose": {"enum": ["public", "vpn", "private"]},
       "depends_on": {"type": "array", "items": {"$ref": "#/$defs/name"}},
       "ports": {"type": "array", "items": {"$ref": "#/$defs/port"}},
       "dns": {"type": "array", "items": {"$ref": "#/$defs/fqdn"}},
